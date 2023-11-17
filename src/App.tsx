@@ -23,7 +23,7 @@ function App() {
     let group = 0;
     const result: any[] = [];
     const arrayNumbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(
-      () => 0.5 - Math.random()
+      () => 0.5 - Math.random(),
     );
 
     for (let i = 0; i < arrayNumbers.length; i++) {
@@ -41,6 +41,20 @@ function App() {
   const handleClick = (value: string) => {
     const replaceValue = value.replace('ou', ',');
     setArrayPw((prevState) => [...prevState, replaceValue]);
+  };
+
+  const submitParallel = () => {
+    axios
+      .post('http://localhost:3003/parallel', {
+        email,
+        arrayPw,
+      })
+      .then(function (response) {
+        console.log(response);
+      })
+      .catch(function (error) {
+        console.error(error);
+      });
   };
 
   const submit = () => {
@@ -174,6 +188,17 @@ function App() {
                 disabled={!email || password.length < 6}
               >
                 Acessar
+              </Button>
+            </Box>
+            <Box mt={4}>
+              <Button
+                type="button"
+                variant="outlined"
+                onClick={() => submitParallel()}
+                fullWidth
+                disabled={!email || password.length < 6}
+              >
+                Acessar (paralelizado)
               </Button>
             </Box>
           </Box>
