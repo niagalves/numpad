@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
+import { Worker } from 'worker_threads';
+
+const WORKERS_COUNT = 5;
 
 const app = express();
 app.use(express.json());
@@ -42,20 +45,75 @@ const generateCombinations = (arr, r) => {
 app.post('/', function (req, res) {
   const { email, arrayPw } = req.body;
 
-  if (!email && !arrayPw.length)
-    res.json({ success: false, msg: 'E-mail ou senha inválidos!' });
+  if (!email && !arrayPw.length) {
+    return res
+      .status(400)
+      .json({ success: false, msg: 'E-mail ou senha inválidos!' });
+  }
 
   const resultNumbers = numbersArray(arrayPw);
   const combinations = generateCombinations(resultNumbers, 6);
 
+  let found = false;
   combinations.forEach((combination) => {
     const password = combination.join('');
     if (bcrypt.compareSync(password, hash)) {
-      console.log(`Senha encontrada: ${password}`);
+      found = true;
     }
   });
 
-  res.json({ success: true, msg: 'ok' });
+  if (!found) {
+    return res
+      .status(400)
+      .json({ success: false, msg: 'E-mail ou senha inválidos!' });
+  }
+  return res.status(200).json({ success: true, msg: 'ok' });
+});
+
+const createChunks = (arr = [], chunks = 1) => {
+  const group = [];
+  for (let i = 0; i < chunks; i++) {
+    group.push([]);
+  }
+  for (let i = 0; i < arr.length; i++) {
+    group[i % chunks].push(arr[i]);
+  }
+  return group;
+};
+
+const createWorker = (chunk) =>
+  new Promise((resolve) => {
+    // const worker = new Worker("./worker.js", { workerData: chunk }); // Descomentar caso rodando api de dentro da pasta server
+    const worker = new Worker('./server/worker.js', { workerData: chunk }); // Descomentar caso rodando api da root do projeto
+    worker.on('message', (message) => {
+      resolve(message);
+    });
+  });
+
+app.post('/parallel', async (req, res) => {
+  const { email, arrayPw } = req.body;
+
+  if (!email && !arrayPw.length) {
+    return res
+      .status(400)
+      .json({ success: false, msg: 'E-mail ou senha inválidos!' });
+  }
+
+  const resultNumbers = numbersArray(arrayPw);
+  const combinations = generateCombinations(resultNumbers, 6);
+  const chunks = createChunks(combinations, WORKERS_COUNT);
+
+  let found = false;
+  const results = chunks.map((chunk) => createWorker(chunk));
+  const awaited = await Promise.all(results);
+  found = awaited.some((r) => r);
+
+  if (found) {
+    return res
+      .status(400)
+      .json({ success: false, msg: 'E-mail ou senha inválidos!' });
+  }
+  return res.status(200).json({ success: true, msg: 'ok' });
 });
 
 app.listen(3003);
